@@ -1,4 +1,4 @@
-module github.com/retailcrm/roadrunner-ydb
+module github.com/kifril-ltd/roadrunner-ydb
 
 go 1.24
 

@@ -3,7 +3,7 @@ package tests
 import (
 	"fmt"
 	"github.com/google/uuid"
-	ydb "github.com/retailcrm/roadrunner-ydb"
+	ydb "github.com/kifril-ltd/roadrunner-ydb"
 	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
 	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
