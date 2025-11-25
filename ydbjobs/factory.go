@@ -5,7 +5,6 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/topic"
 	"github.com/ydb-platform/ydb-go-sdk/v3/topic/topicoptions"
 	"github.com/ydb-platform/ydb-go-sdk/v3/topic/topicreader"
-	"github.com/ydb-platform/ydb-go-sdk/v3/topic/topictypes"
 	"go.uber.org/zap"
 	"time"
 )
@@ -53,34 +52,4 @@ func BuildConsumer(
 	}()
 
 	return c, nil
-}
-
-func BuildProducer(
-	client topic.Client,
-	logger *zap.Logger,
-	topic string,
-	producerId string,
-) (Producer, error) {
-	writer, err := client.StartWriter(topic,
-		topicoptions.WithWriterCodec(topictypes.CodecRaw),
-		topicoptions.WithWriterWaitServerAck(false),
-		topicoptions.WithWriterProducerID(producerId),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := writer.WaitInit(ctx); err != nil {
-		logger.Error("Failed to wait for writer initialization", zap.Error(err))
-
-		return nil, err
-	}
-
-	p := NewProducer(writer, logger)
-
-	return p, nil
 }

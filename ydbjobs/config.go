@@ -7,6 +7,7 @@ type Config struct {
 
 	Priority     int           `mapstructure:"priority"`
 	Topic        string        `mapstructure:"topic"`
+	IsRegex      bool          `mapstructure:"is_regex"`
 	ProducerOpts *ProducerOpts `mapstructure:"producer_options"`
 	ConsumerOpts *ConsumerOpts `mapstructure:"consumer_options"`
 }

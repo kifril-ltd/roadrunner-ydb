@@ -102,15 +102,16 @@ func TestFoo(t *testing.T) {
 			Options: &jobsProto.Options{
 				Priority: 1,
 				Pipeline: pipeline,
-				Topic:    "test-topic",
+				Topic:    "test_topic",
 			},
 		})
 	}
 
-	time.Sleep(1 * time.Second)
-
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 10)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 10)
+	assert.Eventually(t, func() bool {
+		return oLogger.FilterMessageSnippet("job was pushed successfully").Len() >= 10 && oLogger.
+			FilterMessageSnippet("job was processed successfully").Len() >= 10
+	}, 5*time.Second,
+		1*time.Second)
 
 	helpers.PausePipelines(t, address, pipeline)
 
@@ -122,36 +123,34 @@ func TestFoo(t *testing.T) {
 			Options: &jobsProto.Options{
 				Priority: 1,
 				Pipeline: pipeline,
-				Topic:    "test-topic",
+				Topic:    "test_topic",
 			},
 		})
 	}
 
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 20)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 10)
+	assert.Eventually(t, func() bool {
+		return oLogger.FilterMessageSnippet("job was pushed successfully").Len() >= 20 && oLogger.
+			FilterMessageSnippet("job was processed successfully").Len() >= 10
+	}, 5*time.Second,
+		1*time.Second)
 	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("pipeline was paused").Len(), 1)
-
-	time.Sleep(1 * time.Second)
 
 	state := helpers.Stats(t, address)
 	assert.False(t, state.Stats[0].Ready)
-
 	time.Sleep(1 * time.Second)
 
 	helpers.ResumePipes(t, address, pipeline)
 
-	time.Sleep(1 * time.Second)
+	assert.Eventually(t, func() bool {
+		return oLogger.FilterMessageSnippet("job was pushed successfully").Len() >= 20 &&
+			oLogger.FilterMessageSnippet("job was processed successfully").Len() >= 20
+	}, 5*time.Second,
+		1*time.Second)
 
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 20)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 20)
 	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("pipeline was resumed").Len(), 1)
-
-	time.Sleep(1 * time.Second)
 
 	state = helpers.Stats(t, address)
 	assert.True(t, state.Stats[0].Ready)
-
-	time.Sleep(1 * time.Second)
 
 	helpers.DestroyPipelines(t, address, pipeline)
 

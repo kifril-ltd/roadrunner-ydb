@@ -39,6 +39,7 @@ jobs:
       config:
         priority: 1
         topic: test_topic
+        is_regexp: false
         producer_options:
           id: test_producer_id
         consumer_options:

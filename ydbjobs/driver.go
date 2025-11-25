@@ -16,19 +16,24 @@ const (
 )
 
 type Driver struct {
-	Cfg      Config
-	Driver   *ydb.Driver
-	Client   topic.Client
-	Queue    jobs.Queue
-	Pipeline atomic.Pointer[jobs.Pipeline]
-	Logger   *zap.Logger
-	consumer Consumer
-	producer Producer
-	ready    uint32
+	Cfg             Config
+	Driver          *ydb.Driver
+	Client          topic.Client
+	Queue           jobs.Queue
+	Pipeline        atomic.Pointer[jobs.Pipeline]
+	Logger          *zap.Logger
+	consumer        Consumer
+	producerFactory *ProducerFactory
+	ready           uint32
 }
 
 func (d *Driver) Push(ctx context.Context, msg jobs.Message) error {
-	return d.producer.Produce(ctx, msg)
+	prd, err := d.producerFactory.Producer(ctx, msg.Topic())
+	if err != nil {
+		return err
+	}
+
+	return prd.Produce(ctx, msg)
 }
 
 func (d *Driver) Run(ctx context.Context, pipeline jobs.Pipeline) error {
@@ -44,22 +49,24 @@ func (d *Driver) Run(ctx context.Context, pipeline jobs.Pipeline) error {
 
 	var err error
 
-	d.consumer, err = BuildConsumer(
-		d.Client,
-		d.Logger,
-		d.Cfg.Topic,
-		d.Cfg.ConsumerOpts.Name,
-		func(record *topicreader.Message) error {
-			d.Queue.Insert(fromMessage(record))
+	if d.Cfg.ConsumerOpts != nil && !d.Cfg.IsRegex {
+		d.consumer, err = BuildConsumer(
+			d.Client,
+			d.Logger,
+			d.Cfg.Topic,
+			d.Cfg.ConsumerOpts.Name,
+			func(record *topicreader.Message) error {
+				d.Queue.Insert(fromMessage(record))
 
-			return nil
-		},
-	)
-	if err != nil {
-		return err
+				return nil
+			},
+		)
+		if err != nil {
+			return err
+		}
 	}
 
-	d.producer, err = BuildProducer(
+	d.producerFactory, err = NewProducerFactory(
 		d.Client,
 		d.Logger,
 		d.Cfg.Topic,
@@ -67,6 +74,10 @@ func (d *Driver) Run(ctx context.Context, pipeline jobs.Pipeline) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	if !d.Cfg.IsRegex {
+		_, _ = d.producerFactory.Producer(ctx, d.Cfg.Topic)
 	}
 
 	return nil
@@ -77,12 +88,14 @@ func (d *Driver) Stop(ctx context.Context) error {
 
 	defer atomic.StoreUint32(&d.ready, 0)
 
-	err := d.producer.Stop(ctx)
+	err := d.producerFactory.Stop(ctx)
 	if err != nil {
 		return err
 	}
 
-	d.consumer.Stop()
+	if d.consumer != nil {
+		d.consumer.Stop()
+	}
 
 	err = d.Driver.Close(ctx)
 	if err != nil {
@@ -105,8 +118,10 @@ func (d *Driver) Pause(ctx context.Context, pipeline string) error {
 		return errors.Errorf("driver is not running")
 	}
 
-	d.consumer.Stop()
-	d.consumer = nil
+	if d.consumer != nil {
+		d.consumer.Stop()
+		d.consumer = nil
+	}
 
 	atomic.StoreUint32(&d.ready, 0)
 	d.Logger.Debug("pipeline was paused")
